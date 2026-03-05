@@ -49,9 +49,19 @@ max_iterations = 80
 
 all_data = []
 
+# Headers que simulan un navegador real para evitar Cloudflare
 headers = {
     "Content-Type": "application/json",
-    "X-Appwrite-Project": project_id
+    "X-Appwrite-Project": project_id,
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Origin": "https://appwrite.sociest.org",
+    "Referer": "https://appwrite.sociest.org/",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "DNT": "1"
 }
 
 # Agregar API key si está disponible
@@ -79,25 +89,31 @@ for i in range(max_iterations):
     for attempt in range(max_retries):
         try:
             print(f"Attempting request {attempt + 1}/3 for offset {offset}...")
-            response = requests.post(endpoint, json=payload, headers=headers, timeout=900)
+            
+            # Crear sesión para mantener cookies
+            session = requests.Session()
+            session.headers.update(headers)
+            
+            response = session.post(endpoint, json=payload, timeout=900, allow_redirects=False)
             
             if response.status_code == 201:
                 print(f"Success!")
                 break
             elif response.status_code == 403:
-                print(f"403 Forbidden - Verificar credenciales. Detalles: {response.text[:200]}")
+                print(f"403 Forbidden - Posiblemente Cloudflare. Headers: {list(response.headers.keys())[:5]}")
                 if attempt < max_retries - 1:
-                    time.sleep(2)
+                    print(f"Esperando 5 segundos antes de reintentar...")
+                    time.sleep(5)
             else:
                 print(f"Error {response.status_code}: {response.text[:200]}")
                 if attempt < max_retries - 1:
-                    print(f"Reintentando en 2 segundos...")
-                    time.sleep(2)
+                    print(f"Reintentando en 5 segundos...")
+                    time.sleep(5)
         except Exception as e:
             print(f"Exception: {str(e)}")
             if attempt < max_retries - 1:
-                print(f"Reintentando en 2 segundos...")
-                time.sleep(2)
+                print(f"Reintentando en 5 segundos...")
+                time.sleep(5)
     
     if response is None or response.status_code != 201:
         print(f"Request failed after {max_retries} attempts")
