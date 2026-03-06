@@ -36,11 +36,13 @@ WHERE {
 LIMIT {{LIMIT}}
 OFFSET {{OFFSET}}"""
 
-endpoint = "https://appwrite.sociest.org/v1/functions/69a736320015c4f40b23/executions"
+endpoint = "https://query.sociest.org/"
 
 # Cargar variables de entorno o usar valores por defecto
 project_id = os.getenv("APPWRITE_PROJECT", "697ea96f003c3264105c")
 api_key = os.getenv("APPWRITE_API_KEY", "")
+appwrite_url = os.getenv("APPWRITE_URL", "https://appwrite.sociest.org")
+cloudflare_token = os.getenv("CLOUDFLARE_TOKEN", "")
 
 # Fetch all candidates with pagination
 offset = 0
@@ -57,20 +59,32 @@ headers = {
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
-    "Origin": "https://appwrite.sociest.org",
-    "Referer": "https://appwrite.sociest.org/",
+    "Origin": appwrite_url,
+    "Referer": f"{appwrite_url}/",
     "Cache-Control": "no-cache",
     "Pragma": "no-cache",
-    "DNT": "1"
+    "DNT": "1",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin"
 }
 
 # Agregar API key si está disponible
 if api_key:
     headers["X-Appwrite-Key"] = api_key
 
+# Agregar Cloudflare token si está disponible
+if cloudflare_token:
+    headers["CF-Access-Token"] = cloudflare_token
+
+endpoint = f"{appwrite_url}/v1/functions/69a736320015c4f40b23/executions"
+
+
 print("Start Extraction")
+print(f"Appwrite URL: {appwrite_url}")
 print(f"Project ID: {project_id[:20]}...")
 print(f"API Key: {'Configurada' if api_key else 'No configurada'}")
+print(f"Cloudflare Token: {'Configurado' if cloudflare_token else 'No configurado'}")
 
 for i in range(max_iterations):
     query_with_offset = query.replace("{{OFFSET}}", str(offset)).replace("{{LIMIT}}", str(limit))
