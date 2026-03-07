@@ -66,7 +66,7 @@ headers = {
     "DNT": "1",
     "Sec-Fetch-Dest": "empty",
     "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin"
+    "Sec-Fetch-Site": "same-origin",
 }
 
 # Agregar API key si está disponible
@@ -77,8 +77,6 @@ if api_key:
 if cloudflare_token:
     headers["CF-Access-Token"] = cloudflare_token
 
-endpoint = f"{appwrite_url}/v1/functions/69a736320015c4f40b23/executions"
-
 
 print("Start Extraction")
 print(f"Appwrite URL: {appwrite_url}")
@@ -87,34 +85,34 @@ print(f"API Key: {'Configurada' if api_key else 'No configurada'}")
 print(f"Cloudflare Token: {'Configurado' if cloudflare_token else 'No configurado'}")
 
 for i in range(max_iterations):
-    query_with_offset = query.replace("{{OFFSET}}", str(offset)).replace("{{LIMIT}}", str(limit))
-    
-    payload = {
-        "body": json.dumps({
-            "query": query_with_offset.replace('\n', '\n')
-        }),
-        "method": "POST",
-        "headers": {"Content-Type": "application/json"}
-    }
-    
+    query_with_offset = query.replace("{{OFFSET}}", str(offset)).replace(
+        "{{LIMIT}}", str(limit)
+    )
+
+    payload = {"query": query_with_offset.replace("\n", "\n")}
+
     max_retries = 3
     response = None
-    
+
     for attempt in range(max_retries):
         try:
             print(f"Attempting request {attempt + 1}/3 for offset {offset}...")
-            
+
             # Crear sesión para mantener cookies
             session = requests.Session()
             session.headers.update(headers)
-            
-            response = session.post(endpoint, json=payload, timeout=900, allow_redirects=False)
-            
-            if response.status_code == 201:
+
+            response = session.post(
+                endpoint, json=payload, timeout=900, allow_redirects=False
+            )
+
+            if response.status_code in [201, 200]:
                 print(f"Success!")
                 break
             elif response.status_code == 403:
-                print(f"403 Forbidden - Posiblemente Cloudflare. Headers: {list(response.headers.keys())[:5]}")
+                print(
+                    f"403 Forbidden - Posiblemente Cloudflare. Headers: {list(response.headers.keys())[:5]}"
+                )
                 if attempt < max_retries - 1:
                     print(f"Esperando 5 segundos antes de reintentar...")
                     time.sleep(5)
@@ -128,22 +126,21 @@ for i in range(max_iterations):
             if attempt < max_retries - 1:
                 print(f"Reintentando en 5 segundos...")
                 time.sleep(5)
-    
-    if response is None or response.status_code != 201:
+
+    if response is None or response.status_code not in [201, 200]:
         print(f"Request failed after {max_retries} attempts")
         if response:
             print(f"Status: {response.status_code}")
             print(f"Response: {response.text[:500]}")
         break
-    
+
     response_data = response.json()
-    response_body = json.loads(response_data["responseBody"])
-    results = response_body.get("results", {}).get("bindings", [])
-    
+    results = response_data.get("results", {}).get("bindings", [])
+
     if not results:
         print(f"No more records at offset {offset}")
         break
-    
+
     print(f"Offset {offset}: Retrieved {len(results)} records")
     all_data.extend(results)
     offset += limit
@@ -157,4 +154,3 @@ if all_data:
     print("Data saved to datos/candidatos.csv")
 else:
     print("No data collected. Check authentication and permissions.")
-
