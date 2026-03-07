@@ -13,9 +13,20 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Configurar entorno e instalar dependencias
         run: |
+          # 1. Usamos python3 explícitamente para crear el entorno virtual aislado
+          python3 -m venv venv
+          
+          # 2. Activamos el entorno virtual
+          source venv/bin/activate
+          
+          # 3. Magia: una vez activado el venv, el comando 'python' y 'pip' ya funcionan normalmente
+          python -m pip install --upgrade pip
           pip install -r datos/requirements_collect.txt
+          
+          # Opcional: Ejecuta tu script de recolección de datos aquí mismo mientras el venv está activo
+          # python main_collect.py
 
       - name: Run collection
         env:
