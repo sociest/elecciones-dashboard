@@ -32,7 +32,15 @@ jobs:
           APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
           APPWRITE_URL: https://appwrite.sociest.org
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
-        run: ./venv/bin/python datos/collect_politics.py
+        run: ./venv/bin/python datos/collect_partidos.py
+        continue-on-error: false
+
+      - name: Run collection
+        env:
+          APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+          APPWRITE_URL: https://appwrite.sociest.org
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+        run: ./venv/bin/python datos/collect_surveys.py
         continue-on-error: false
 
       - name: Configure Git
