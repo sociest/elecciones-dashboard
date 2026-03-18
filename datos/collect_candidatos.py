@@ -1,209 +1,70 @@
-import requests, json
-import pandas as pd
-import time
 import os
 
-query = """SELECT DISTINCT ?item ?label ?ci ?cargo ?militancia ?trayectoria ?estudios ?foto ?youtube ?facebook ?instagram ?tiktok ?twitter ?partido ?territorio
+from collect_common import collect_query_to_csv
+
+query = """SELECT DISTINCT ?item ?label ?ci ?cargo ?cargo_label ?militancia ?militancia_label ?trayectoria ?trayectoria_label ?estudios ?estudios_label ?partido ?partido_label ?territorio ?territorio_label ?foto ?youtube ?facebook ?instagram ?tiktok ?twitter
 WHERE { 
+  # Campo obligatorio por el que se ancla la búsqueda
   ?item claim:69857da6142c6cf1636b ?stmt1 .
-  OPTIONAL {
-    ?item claim:69839e7ca5dfc05c1847 ?stmt2 .
-    ?stmt2 value: ?ci .
-    ?item claim:69909ff678ca509e132b ?stmt3 .
-    ?stmt3 value: ?militancia .
-    ?item claim:6991e1f71d9b946eed02 ?stmt4 .
-    ?stmt4 value: ?trayectoria .
-    ?item claim:698a960962e87e866083 ?stmt5 .
-    ?stmt5 value: ?estudios .
-    ?item claim:698d2b149e3a7aa9ca9d ?stmt6 .
-    ?stmt6 value: ?foto .
-    ?item claim:698ff396819084d3f34f ?stmt7 .
-    ?stmt7 value: ?youtube .
-    ?item claim:698a9704d5423dd2a594 ?stmt8 .
-    ?stmt8 value: ?facebook .
-    ?item claim:6990ac7d411c99d182eb ?stmt9 .
-    ?stmt9 value: ?instagram .
-    ?item claim:698d2ea93ec1314cd130 ?stmt10 .
-    ?stmt10 value: ?tiktok .
-    ?item claim:6990acbb7e77c6674b88 ?stmt11 .
-    ?stmt11 value: ?twitter .
-    ?item claim:69857da6142c6cf1636b ?stmt12 .
-    ?stmt12 value: ?cargo .
-    ?stmt12 qual:6985697dce1378ac55e9 ?partido .
-    ?stmt12 qual:6982cd215f22d1c5d613 ?territorio .
+  ?stmt1 value: ?cargo .
+  
+  # Etiquetas explícitas para campos principales
+  OPTIONAL { ?item label: ?label . }
+  OPTIONAL { ?cargo label: ?cargo_label . }
+
+  # Bloques opcionales independientes con su propia etiqueta
+  OPTIONAL { 
+    ?item prop:69839e7ca5dfc05c1847 ?ci . 
+  }
+  OPTIONAL { 
+    ?item prop:69909ff678ca509e132b ?militancia . 
+    ?militancia label: ?militancia_label .
+  }
+  OPTIONAL { 
+    ?item prop:6991e1f71d9b946eed02 ?trayectoria . 
+    ?trayectoria label: ?trayectoria_label .
+  }
+  OPTIONAL { 
+    ?item prop:698a960962e87e866083 ?estudios . 
+    ?estudios label: ?estudios_label .
+  }
+  
+  # Redes Sociales y Multimedia
+  OPTIONAL { ?item prop:698d2b149e3a7aa9ca9d ?foto . }
+  OPTIONAL { ?item prop:698ff396819084d3f34f ?youtube . }
+  OPTIONAL { ?item prop:698a9704d5423dd2a594 ?facebook . }
+  OPTIONAL { ?item prop:6990ac7d411c99d182eb ?instagram . }
+  OPTIONAL { ?item prop:698d2ea93ec1314cd130 ?tiktok . }
+  OPTIONAL { ?item prop:6990acbb7e77c6674b88 ?twitter . }
+  
+  # Cualificadores del Cargo con etiquetas explícitas
+  OPTIONAL { 
+    ?stmt1 qual:6985697dce1378ac55e9 ?partido . 
+    ?partido label: ?partido_label .
+  }
+  OPTIONAL { 
+    ?stmt1 qual:6982cd215f22d1c5d613 ?territorio . 
+    ?territorio label: ?territorio_label .
   }
 }
-GROUP BY ?item
+ORDER BY ?item
 LIMIT {{LIMIT}}
 OFFSET {{OFFSET}}"""
 
 endpoint = "https://query.sociest.org/"
 
-# Cargar variables de entorno o usar valores por defecto
-project_id = os.getenv("APPWRITE_PROJECT", "697ea96f003c3264105c")
-api_key = os.getenv("APPWRITE_API_KEY", "")
-appwrite_url = os.getenv("APPWRITE_URL", "https://appwrite.sociest.org")
-cloudflare_token = os.getenv("CLOUDFLARE_TOKEN", "")
+max_records_env = os.getenv("MAX_RECORDS", 7000)
+max_records = int(max_records_env) if max_records_env else None
 
-# Fetch all candidates with pagination
-offset = 0
-initial_limit = 100
-max_iterations = 80
-
-all_data = []
-
-# Headers que simulan un navegador real para evitar Cloudflare
-headers = {
-    "Content-Type": "application/json",
-#    "X-Appwrite-Project": project_id,
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-#    "Origin": appwrite_url,
-#    "Referer": f"{appwrite_url}/",
-    "Cache-Control": "no-cache",    
-    "Pragma": "no-cache",
-    "DNT": "1",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin",
-}
-
-# Agregar API key si está disponible
-#if api_key:
-#    headers["X-Appwrite-Key"] = api_key
-
-# Agregar Cloudflare token si está disponible
-#if cloudflare_token:
-#    headers["CF-Access-Token"] = cloudflare_token
-
-
-print("Start Extraction")
-#print(f"Appwrite URL: {appwrite_url}")
-#print(f"Project ID: {project_id[:20]}...")
-#print(f"API Key: {'Configurada' if api_key else 'No configurada'}")
-#print(f"Cloudflare Token: {'Configurado' if cloudflare_token else 'No configurado'}")
-
-
-def fetch_page(current_offset, current_limit, max_retries=3):
-    query_with_offset = query.replace("{{OFFSET}}", str(current_offset)).replace(
-        "{{LIMIT}}", str(current_limit)
-    )
-    payload = {"query": query_with_offset.replace("\n", "\n")}
-    response = None
-
-    for attempt in range(max_retries):
-        try:
-            print(
-                f"Attempting request {attempt + 1}/{max_retries} for offset {current_offset} (limit={current_limit})..."
-            )
-
-            session = requests.Session()
-            session.headers.update(headers)
-            response = session.post(
-                endpoint, json=payload, timeout=900, allow_redirects=False
-            )
-
-            if response.status_code in [200, 201]:
-                print("Success!")
-                return response, None
-
-            if (
-                response.status_code == 500
-                and "'NoneType' object is not iterable" in response.text
-            ):
-                print(
-                    "Fatal 500 detected ('NoneType' object is not iterable). Stopping extraction and saving partial data..."
-                )
-                return response, "fatal_none_iterable"
-
-            if response.status_code == 403:
-                print(f"403 Forbidden - {list(response.headers.keys())} {response.text}")
-            else:
-                print(f"Error {response.status_code}: {response.text[:200]}")
-
-            if attempt < max_retries - 1:
-                print("Reintentando en 5 segundos...")
-                time.sleep(5)
-        except Exception as e:
-            print(f"Exception: {str(e)}")
-            if attempt < max_retries - 1:
-                print("Reintentando en 5 segundos...")
-                time.sleep(5)
-
-    return response, "request_failed"
-
-
-iterations = 0
-stop_extraction = False
-while iterations < max_iterations:
-    iterations += 1
-    page_limit = initial_limit
-
-    while True:
-        response, error = fetch_page(offset, page_limit)
-
-        if error == "fatal_none_iterable":
-            stop_extraction = True
-            break
-
-        if error is None and response is not None:
-            try:
-                response_data = response.json()
-            except ValueError:
-                print(
-                    f"Invalid JSON response at offset {offset} with limit={page_limit}."
-                )
-                print(f"Status: {response.status_code}")
-                print(f"Response: {response.text[:500]}")
-
-                if page_limit > 1:
-                    page_limit = max(1, page_limit // 2)
-                    print(
-                        f"Reducing page size and retrying with limit={page_limit}..."
-                    )
-                    continue
-
-                print(f"Skipping problematic record at offset {offset}")
-                offset += 1
-                break
-
-            results = response_data.get("results", {}).get("bindings", [])
-
-            if not results:
-                print(f"No more records at offset {offset}")
-                iterations = max_iterations
-                break
-
-            print(f"Offset {offset}: Retrieved {len(results)} records")
-            all_data.extend(results)
-            offset += len(results)
-            time.sleep(1)
-            break
-
-        print(f"Request failed after retries at offset {offset} with limit={page_limit}")
-        if response is not None:
-            print(f"Status: {response.status_code}")
-            print(f"Response: {response.text[:500]}")
-
-        if page_limit > 1:
-            page_limit = max(1, page_limit // 2)
-            print(f"Reducing page size and retrying with limit={page_limit}...")
-            continue
-
-        print(f"Skipping problematic record at offset {offset}")
-        offset += 1
-        break
-
-    if stop_extraction:
-        break
-
-print(f"\nTotal candidates collected: {len(all_data)}")
-
-if all_data:
-    all_data_df = pd.DataFrame(all_data)
-    all_data_df.to_csv("datos/candidatos.csv", index=False)
-    print("Data saved to datos/candidatos.csv")
-else:
-    print("No data collected. Check authentication and permissions.")
+collect_query_to_csv(
+    query_template=query,
+    format="csv",
+    output_path="datos/candidatos.csv",
+    endpoint=endpoint,
+    initial_limit=int(os.getenv("PAGE_LIMIT", "100")),
+    max_retries=int(os.getenv("MAX_RETRIES", "3")),
+    request_timeout=int(os.getenv("REQUEST_TIMEOUT", "900")),
+    retry_delay=int(os.getenv("RETRY_DELAY", "5")),
+    sleep_between_pages=float(os.getenv("SLEEP_BETWEEN_PAGES", "1")),
+    max_records=max_records,
+)
