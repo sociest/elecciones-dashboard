@@ -1,0 +1,160 @@
+---
+title: "Contribuidores"
+format:
+  dashboard:
+    theme:
+      light: cosmo
+      dark: darkly
+    orientation: rows
+    scrolling-rows: auto
+execute:
+  echo: false
+  output: false
+---
+
+```{ojs}
+Plot = require("@observablehq/plot@0.6")
+```
+
+```{ojs}
+ranking = FileAttachment("datos/ranking.csv").csv()
+
+toNum = (v) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+normalizar = (v, fallback = "(Sin dato)") => {
+  if (v === null || v === undefined) return fallback
+  const t = String(v).trim()
+  return t === "" ? fallback : t
+}
+
+contributors = ranking
+  .map((d) => ({
+    user_id: normalizar(d.user_id, ""),
+    user_name: normalizar(d.user_name),
+    total_cambios: toNum(d.total_cambios),
+    primera_actividad: normalizar(d.primera_actividad, ""),
+    ultima_actividad: normalizar(d.ultima_actividad, ""),
+    acciones: normalizar(d.acciones, ""),
+    entity_types: normalizar(d.entity_types, "")
+  }))
+  .sort((a, b) => b.total_cambios - a.total_cambios)
+
+totalContribuidores = contributors.length
+totalCambios = contributors.reduce((acc, d) => acc + d.total_cambios, 0)
+promedioCambios = totalContribuidores ? totalCambios / totalContribuidores : 0
+topContribuidor = contributors[0] || null
+
+top20 = contributors.slice(0, 20)
+```
+
+# Resumen
+
+## Row {height=20%}
+
+```{ojs}
+//| output: true
+html`<div style="font-size:2rem;font-weight:700">${totalContribuidores}</div>
+<div style="color:#6c757d">Contribuidores detectados</div>`
+```
+
+```{ojs}
+//| output: true
+html`<div style="font-size:2rem;font-weight:700">${totalCambios}</div>
+<div style="color:#6c757d">Eventos de auditoría</div>`
+```
+
+```{ojs}
+//| output: true
+html`<div style="font-size:2rem;font-weight:700">${promedioCambios.toFixed(1)}</div>
+<div style="color:#6c757d">Cambios promedio por contribuidor</div>`
+```
+
+```{ojs}
+//| output: true
+html`<div style="font-size:1.2rem;font-weight:700">${topContribuidor ? topContribuidor.user_name : "-"}</div>
+<div style="color:#6c757d">Top contribuidor (${topContribuidor ? topContribuidor.total_cambios : 0} cambios)</div>`
+```
+
+## Row {height=80%}
+
+```{ojs}
+//| output: true
+//| title: Top 20 contribuidores por cambios
+Plot.plot({
+  height: 520,
+  marginLeft: 220,
+  x: {label: "Total de cambios"},
+  y: {label: null},
+  marks: [
+    Plot.barX(top20, {
+      x: "total_cambios",
+      y: "user_name",
+      fill: "#0d6efd",
+      sort: {y: "x", reverse: true},
+      tip: true
+    }),
+    Plot.text(top20, {
+      x: "total_cambios",
+      y: "user_name",
+      text: (d) => `${d.total_cambios}`,
+      dx: 8,
+      textAnchor: "start",
+      fill: "#212529"
+    })
+  ]
+})
+```
+
+# Tabla
+
+## Row {height=20%}
+
+```{ojs}
+//| output: true
+viewof filtrosTabla = Inputs.form({
+  nombre: Inputs.text({label: "Buscar contribuidor", placeholder: "Nombre o ID"}),
+  minCambios: Inputs.range([0, Math.max(1, ...contributors.map((d) => d.total_cambios))], {
+    step: 1,
+    value: 0,
+    label: "Mínimo de cambios"
+  })
+})
+```
+
+```{ojs}
+//| output: false
+textoFiltro = (filtrosTabla.nombre || "").trim().toLowerCase()
+
+contributorsFiltrados = contributors.filter((d) => {
+  const matchNombre = !textoFiltro ||
+    d.user_name.toLowerCase().includes(textoFiltro) ||
+    d.user_id.toLowerCase().includes(textoFiltro)
+  const matchCambios = d.total_cambios >= filtrosTabla.minCambios
+  return matchNombre && matchCambios
+})
+```
+
+## Row {height=80%}
+
+```{ojs}
+//| output: true
+Inputs.table(
+  contributorsFiltrados.map((d) => ({
+    user_name: d.user_name,
+    user_id: d.user_id,
+    total_cambios: d.total_cambios,
+    primera_actividad: d.primera_actividad,
+    ultima_actividad: d.ultima_actividad,
+    acciones: d.acciones,
+    entity_types: d.entity_types
+  })),
+  {
+    columns: ["user_name", "user_id", "total_cambios", "primera_actividad", "ultima_actividad", "acciones", "entity_types"],
+    sort: "total_cambios",
+    reverse: true
+  }
+)
+```

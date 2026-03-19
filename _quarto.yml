@@ -11,6 +11,8 @@ website:
         text: Partidos
       - href: surveys.qmd
         text: Encuestas
+      - href: ranking.qmd
+        text: Contribuidores
 
 format:
   html:
