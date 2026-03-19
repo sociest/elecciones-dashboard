@@ -1,1 +1,1 @@
-Sitemap: https://sociest.github.io/dashboard-graph/sitemap.xml
+Sitemap: https://sociest.github.io/elecciones-dashboard/sitemap.xml
